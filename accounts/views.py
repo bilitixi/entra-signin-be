@@ -15,6 +15,7 @@ from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
 from urllib.parse import urlencode
 
+from . import graph
 from .models import Role, User
 
 
@@ -158,6 +159,37 @@ def users_collection(request):
         if User.objects.filter(email__iexact=email).exists():
             return JsonResponse({"detail": "user already exists"}, status=409)
 
+        # Also create the person's Entra identity, so they can click "Sign
+        # in" straight away instead of an admin creating them manually in
+        # the portal first. Defaults on when ENTRA_CIAM_DOMAIN is
+        # configured; pass create_entra_identity: false to skip (e.g. the
+        # identity already exists in Entra and only the local row is
+        # missing).
+        entra_object_id = None
+        temp_password = None
+        want_entra_identity = payload.get(
+            "create_entra_identity", bool(settings.ENTRA_CIAM_DOMAIN)
+        )
+        if want_entra_identity:
+            if not settings.ENTRA_CIAM_DOMAIN:
+                return HttpResponseBadRequest(
+                    "ENTRA_CIAM_DOMAIN is not configured; set create_entra_identity: false"
+                    " or configure it (see ENTRA_PORTAL_SETUP.md §5b)"
+                )
+            display_name = " ".join(
+                filter(None, [payload.get("first_name"), payload.get("last_name")])
+            )
+            temp_password = graph.generate_temp_password()
+            try:
+                entra_object_id = graph.create_local_account(
+                    email, display_name, temp_password
+                )
+            except graph.GraphError as exc:
+                return JsonResponse(
+                    {"detail": f"could not create Entra identity: {exc}"},
+                    status=502,
+                )
+
         user = User.objects.create_user(
             email=email,
             role=payload.get("role", Role.MEMBER),
@@ -166,8 +198,14 @@ def users_collection(request):
             dob=payload.get("dob") or None,
             phone=payload.get("phone", ""),
             address=payload.get("address", ""),
+            entra_object_id=entra_object_id,
         )
-        return JsonResponse(_serialize_user(user), status=201)
+        body = _serialize_user(user)
+        if temp_password:
+            # Shown once — not stored anywhere. The person must change it
+            # (forceChangePasswordNextSignIn) the moment they sign in.
+            body["temp_password"] = temp_password
+        return JsonResponse(body, status=201)
 
     if request.method == "GET":
         if not _require_admin(request):

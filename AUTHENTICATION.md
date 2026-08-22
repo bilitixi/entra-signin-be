@@ -63,6 +63,29 @@ Deactivating a user is a two-step story:
    registration needs that Graph permission granted even though sign-in
    doesn't call Graph directly.
 
+## §6b. Provisioning an Entra identity from the admin UI
+
+`POST /users` can optionally create the person's Entra identity at the same
+time as the local row (`accounts/graph.py:create_local_account`), instead of
+requiring an admin to create it manually in the portal first. It:
+
+1. Generates a random temp password meeting Entra's default complexity.
+2. Calls Graph to create a "local account" identity (email + password
+   sign-in, as opposed to a work/school or B2B guest account) with
+   `forceChangePasswordNextSignIn: true`.
+3. Records the returned Entra object id on the local `User` row immediately
+   — pre-linking it, rather than waiting for the `entra_object_id is None`
+   branch in `callback()` to fire on first sign-in.
+4. Returns the temp password in the API response **once** — it is never
+   stored — so the caller can relay it to the person.
+
+Because of step 2, the person's very first "Sign in" click lands them on
+Microsoft's forced password-change screen rather than a normal login — that
+*is* their account setup. Requires the Graph application permission
+`User.ReadWrite.All` with admin consent (§7) and `ENTRA_CIAM_DOMAIN` set;
+without either, `POST /users` falls back to local-row-only provisioning
+(pass `create_entra_identity: false` to always skip the Entra call).
+
 ## §7. Tenant / App Registration prerequisites
 
 See `ENTRA_SIGNIN_SETUP.md` §0 for the checklist. Summary of what must

@@ -105,6 +105,12 @@ ENTRA_SCOPES = ["email"]
 FRONTEND_POST_LOGIN_URL = env("FRONTEND_POST_LOGIN_URL", default="http://localhost:3000/")
 FRONTEND_POST_LOGOUT_URL = env("FRONTEND_POST_LOGOUT_URL", default="http://localhost:3000/")
 
+# Issuer for Graph-created "local account" identities (accounts/graph.py) —
+# your tenant's default domain, e.g. "contoso.onmicrosoft.com". Only needed
+# if provisioning users from /admin should also create their Entra identity;
+# see ENTRA_PORTAL_SETUP.md §5b.
+ENTRA_CIAM_DOMAIN = env("ENTRA_CIAM_DOMAIN", default="")
+
 # Session/cookie config — required for the React SPA to work cross-request
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
