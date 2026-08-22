@@ -41,11 +41,20 @@ def login(request):
     return redirect(auth_url)
 
 
+def _redirect_with_error(code):
+    """Sends the browser back to the SPA with an error code in the query
+    string, instead of showing Django's own 403/400 page — the frontend
+    reads `auth_error` and renders a real error screen (see
+    src/pages/Home.jsx)."""
+    sep = "&" if "?" in settings.FRONTEND_POST_LOGIN_URL else "?"
+    return redirect(f"{settings.FRONTEND_POST_LOGIN_URL}{sep}auth_error={code}")
+
+
 def callback(request):
     state = request.GET.get("state")
     nonce = cache.get(f"oidc_state:{state}")
     if not state or nonce is None:
-        return HttpResponseBadRequest("invalid or expired state")
+        return _redirect_with_error("invalid_state")
     cache.delete(f"oidc_state:{state}")
 
     result = _msal_app().acquire_token_by_authorization_code(
@@ -54,28 +63,31 @@ def callback(request):
         redirect_uri=settings.ENTRA_REDIRECT_URI,
     )
     if "error" in result:
-        return HttpResponseForbidden(result.get("error_description"))
+        return _redirect_with_error("login_failed")
 
     claims = result["id_token_claims"]
     if claims.get("nonce") != nonce:
-        return HttpResponseForbidden("nonce mismatch")
+        return _redirect_with_error("invalid_state")
 
     email = claims.get("email") or claims.get("preferred_username")
     oid = claims["oid"]
 
+    # This is the check the frontend's "email doesn't match" error maps to:
+    # the address the person just signed up/in with in Entra must already
+    # exist as a locally-provisioned User row (invite-only, ENTRA_SIGNIN_SETUP.md §0).
     try:
         user = User.objects.get(email__iexact=email)
     except User.DoesNotExist:
-        return HttpResponseForbidden("no account provisioned for this email")
+        return _redirect_with_error("not_provisioned")
 
     if not user.is_active:
-        return HttpResponseForbidden("account deactivated")
+        return _redirect_with_error("deactivated")
 
     if user.entra_object_id is None:
         user.entra_object_id = oid
         user.save(update_fields=["entra_object_id"])
     elif user.entra_object_id != oid:
-        return HttpResponseForbidden("identity mismatch")
+        return _redirect_with_error("identity_mismatch")
 
     django_login(request, user)
     request.session["id_token"] = result["id_token"]  # needed for RP-initiated logout, see logout()
@@ -159,26 +171,28 @@ def users_collection(request):
         if User.objects.filter(email__iexact=email).exists():
             return JsonResponse({"detail": "user already exists"}, status=409)
 
-        # Also create the person's Entra identity, so they can click "Sign
-        # in" straight away instead of an admin creating them manually in
-        # the portal first. Defaults on when ENTRA_CIAM_DOMAIN is
-        # configured; pass create_entra_identity: false to skip (e.g. the
-        # identity already exists in Entra and only the local row is
-        # missing).
+        display_name = " ".join(
+            filter(None, [payload.get("first_name"), payload.get("last_name")])
+        )
+
+        # Default flow: only the local row is created here. The invite
+        # email points at Entra's self-service sign-up (requires a
+        # self-service sign-up user flow enabled and linked to the app
+        # registration — AUTHENTICATION.md §6b) — the person sets their own
+        # password and MFA there, and /auth/callback links entra_object_id
+        # on that first sign-in like any other login.
+        #
+        # Opt-in alternative: create_entra_identity: true has the backend
+        # create the Entra identity itself via Graph, with a temp password
+        # the person must change on first sign-in. Useful when self-service
+        # sign-up isn't enabled for this tenant.
         entra_object_id = None
         temp_password = None
-        want_entra_identity = payload.get(
-            "create_entra_identity", bool(settings.ENTRA_CIAM_DOMAIN)
-        )
-        if want_entra_identity:
+        if payload.get("create_entra_identity", False):
             if not settings.ENTRA_CIAM_DOMAIN:
                 return HttpResponseBadRequest(
-                    "ENTRA_CIAM_DOMAIN is not configured; set create_entra_identity: false"
-                    " or configure it (see ENTRA_PORTAL_SETUP.md §5b)"
+                    "ENTRA_CIAM_DOMAIN is not configured; required for create_entra_identity: true"
                 )
-            display_name = " ".join(
-                filter(None, [payload.get("first_name"), payload.get("last_name")])
-            )
             temp_password = graph.generate_temp_password()
             try:
                 entra_object_id = graph.create_local_account(
@@ -201,15 +215,18 @@ def users_collection(request):
             entra_object_id=entra_object_id,
         )
         body = _serialize_user(user)
-        if temp_password:
-            try:
+        try:
+            if temp_password:
                 emails.send_account_setup_email(email, display_name, temp_password)
-                body["invite_email_sent"] = True
-            except Exception as exc:  # SMTP misconfigured/unreachable, etc.
-                # Don't lose the password just because the email didn't go
-                # out — surface it so the admin can relay it manually.
-                body["invite_email_sent"] = False
-                body["email_error"] = str(exc)
+            else:
+                emails.send_signup_invite_email(email, display_name)
+            body["invite_email_sent"] = True
+        except Exception as exc:  # SMTP misconfigured/unreachable, etc.
+            # Don't lose the password (if any) just because the email
+            # didn't go out — surface it so the admin can relay it.
+            body["invite_email_sent"] = False
+            body["email_error"] = str(exc)
+            if temp_password:
                 body["temp_password"] = temp_password
         return JsonResponse(body, status=201)
 

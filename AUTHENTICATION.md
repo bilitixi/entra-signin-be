@@ -63,41 +63,51 @@ Deactivating a user is a two-step story:
    registration needs that Graph permission granted even though sign-in
    doesn't call Graph directly.
 
-## §6b. Provisioning an Entra identity from the admin UI
+## §6b. Provisioning a user from the admin UI
 
-`POST /users` can optionally create the person's Entra identity at the same
-time as the local row (`accounts/graph.py:create_local_account`), instead of
-requiring an admin to create it manually in the portal first. It:
+**Default flow — self-service sign-up.** `POST /users` creates only the
+local `User` row, then emails the person an invite
+(`accounts/emails.py:send_signup_invite_email`) pointing at `/auth/login`.
+On Microsoft's sign-in page they choose "Sign up now" and set up their own
+password and MFA — Entra handles account creation entirely; this app never
+touches their credentials. This requires a **self-service sign-up user
+flow** enabled and linked to the app registration in the Entra portal (§7) —
+without it there's no "Sign up now" option to click.
 
-1. Generates a random temp password meeting Entra's default complexity.
-2. Calls Graph to create a "local account" identity (email + password
-   sign-in, as opposed to a work/school or B2B guest account) with
-   `forceChangePasswordNextSignIn: true`.
-3. Records the returned Entra object id on the local `User` row immediately
-   — pre-linking it, rather than waiting for the `entra_object_id is None`
-   branch in `callback()` to fire on first sign-in.
-4. Emails the temp password + a sign-in link to the person directly
-   (`accounts/emails.py:send_account_setup_email`) rather than relying on
-   the admin to relay it. If the email fails to send (SMTP unreachable,
-   misconfigured, etc.), the password is returned in the API response once
-   as a fallback so it isn't lost — `invite_email_sent: false` in the
-   response signals this happened.
+When they finish signing up and land at `/auth/callback`, the existing
+invite-only check (§2 step 4 — `User.objects.get(email__iexact=email)`) is
+exactly the "does the email they signed up with match a provisioned row"
+verification. If it doesn't match (they signed up with a different address,
+or were never provisioned), `callback()` redirects back to the frontend
+with `?auth_error=not_provisioned` instead of creating a session — see §9b
+for how the SPA renders that.
 
-Because of step 2, the person's very first "Sign in" click lands them on
-Microsoft's forced password-change screen rather than a normal login — that
-*is* their account setup. When they finish it and land at `/auth/callback`,
-the existing invite-only check (§2 step 4 — `User.objects.get(email__iexact=email)`)
-is exactly the "does the account email match the User table" verification;
-no separate check was needed since the Entra identity's sign-in email *is*
-what we provisioned it with.
+**Opt-in alternative — admin-created identity.** Pass
+`create_entra_identity: true` in the `POST /users` body to have the backend
+create the Entra identity itself via Graph
+(`accounts/graph.py:create_local_account`) with a generated temp password
+and `forceChangePasswordNextSignIn: true`, pre-linking `entra_object_id`
+immediately instead of waiting for first sign-in. Useful when self-service
+sign-up isn't enabled for the tenant. Requires the Graph application
+permission `User.ReadWrite.All` with admin consent (§7) and
+`ENTRA_CIAM_DOMAIN` set.
 
-Requires the Graph application permission `User.ReadWrite.All` with admin
-consent (§7), `ENTRA_CIAM_DOMAIN` set, and real SMTP settings (`EMAIL_HOST`
-etc.) for the email to actually deliver — without SMTP configured, emails
-print to the console instead (fine for local dev, not for real users).
-Without `ENTRA_CIAM_DOMAIN`, `POST /users` falls back to local-row-only
-provisioning (pass `create_entra_identity: false` to always skip the Entra
-call).
+**Either way**, delivery is by email
+(`send_signup_invite_email`/`send_account_setup_email`), sent directly to
+the person rather than relying on the admin to relay anything. Requires real
+SMTP settings (`EMAIL_HOST` etc.) — without them, emails print to the
+console instead (fine for local dev, not for real users). If sending fails,
+the response reports `invite_email_sent: false` and (for the opt-in path
+only) returns the temp password once as a fallback so it isn't lost.
+
+## §9b. Frontend error handling on sign-in rejection
+
+`/auth/callback` never shows Django's own 403/400 page for a rejected
+sign-in — it redirects to `FRONTEND_POST_LOGIN_URL` with `?auth_error=<code>`
+(`views.py:_redirect_with_error`), so the SPA can render an actual error
+screen instead of a bare Django page. Codes: `not_provisioned`,
+`deactivated`, `identity_mismatch`, `invalid_state`, `login_failed`. See
+`src/pages/Home.jsx` in `entra-signin-fe` for how these map to messages.
 
 ## §7. Tenant / App Registration prerequisites
 
