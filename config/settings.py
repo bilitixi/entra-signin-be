@@ -98,7 +98,10 @@ ENTRA_AUTHORITY = env("ENTRA_AUTHORITY", default="")
 ENTRA_REDIRECT_URI = env(
     "ENTRA_REDIRECT_URI", default="http://localhost:8000/api/v1/auth/callback"
 )
-ENTRA_SCOPES = ["openid", "profile", "email", "offline_access"]
+# MSAL's get_authorization_request_url() adds "openid", "profile", and
+# "offline_access" itself and raises ValueError if they're also passed
+# here — only list scopes beyond that reserved set (see accounts/views.py).
+ENTRA_SCOPES = ["email"]
 FRONTEND_POST_LOGIN_URL = env("FRONTEND_POST_LOGIN_URL", default="http://localhost:3000/")
 FRONTEND_POST_LOGOUT_URL = env("FRONTEND_POST_LOGOUT_URL", default="http://localhost:3000/")
 
