@@ -42,6 +42,7 @@ All routes are mounted under `/api/v1/`.
 | GET | `/auth/callback` | — | Entra redirects back here |
 | GET | `/auth/logout` | session | ends local + Entra SSO session |
 | GET | `/auth/me` | session | current user, 401 if not signed in |
+| POST | `/auth/entra-connector/presignup` | connector Basic auth | called by Entra during sign-up, not the SPA — see AUTHENTICATION.md §6c |
 | POST | `/users` | admin | roster intake (provision before first sign-in) |
 | GET | `/users` | admin | list provisioned users |
 | GET/PATCH | `/users/{id}` | admin | inspect / update role, profile, `is_active` |

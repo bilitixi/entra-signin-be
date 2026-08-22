@@ -130,6 +130,14 @@ EMAIL_BACKEND = (
     else "django.core.mail.backends.console.EmailBackend"
 )
 
+# Credentials Entra's API connector authenticates with (HTTP Basic) when it
+# calls POST /auth/entra-connector/presignup during self-service sign-up —
+# see accounts/views.py:presignup_check and ENTRA_API_CONNECTOR_SETUP.md.
+# Leave unset locally to reject all connector calls (fail closed); required
+# once you wire up the API connector in the portal.
+ENTRA_CONNECTOR_USERNAME = env("ENTRA_CONNECTOR_USERNAME", default="")
+ENTRA_CONNECTOR_PASSWORD = env("ENTRA_CONNECTOR_PASSWORD", default="")
+
 # Session/cookie config — required for the React SPA to work cross-request
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True

@@ -7,6 +7,11 @@ urlpatterns = [
     path("auth/callback", views.callback, name="auth-callback"),
     path("auth/logout", views.logout, name="auth-logout"),
     path("auth/me", views.me, name="auth-me"),
+    path(
+        "auth/entra-connector/presignup",
+        views.presignup_check,
+        name="auth-presignup-check",
+    ),
     path("users", views.users_collection, name="users-collection"),
     path("users/<uuid:user_id>", views.user_detail, name="user-detail"),
 ]

@@ -1,3 +1,4 @@
+import base64
 import json
 import secrets
 
@@ -111,6 +112,70 @@ def logout(request):
         "post_logout_redirect_uri": settings.FRONTEND_POST_LOGOUT_URL,
     }
     return redirect(f"{end_session_endpoint}?{urlencode(params)}")
+
+
+def _connector_authenticated(request):
+    """HTTP Basic auth check for Entra's API connector callback — Entra
+    itself calls this endpoint, not the SPA, so it can't use the session
+    cookie. Fails closed: if ENTRA_CONNECTOR_USERNAME/PASSWORD aren't
+    configured, every call is rejected rather than silently accepted."""
+    if not settings.ENTRA_CONNECTOR_USERNAME or not settings.ENTRA_CONNECTOR_PASSWORD:
+        return False
+    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+    if not auth_header.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(auth_header[len("Basic "):]).decode("utf-8")
+        username, _, password = decoded.partition(":")
+    except (ValueError, UnicodeDecodeError):
+        return False
+    return secrets.compare_digest(
+        username, settings.ENTRA_CONNECTOR_USERNAME
+    ) and secrets.compare_digest(password, settings.ENTRA_CONNECTOR_PASSWORD)
+
+
+@csrf_exempt
+def presignup_check(request):
+    """API connector target for Entra's self-service sign-up user flow,
+    called by Entra itself at the "Before creating the user" step — not by
+    the frontend. Rejects sign-up outright for emails that were never
+    provisioned via /users, closing the gap where anyone could otherwise
+    create a real Entra identity even though they'd fail the invite-only
+    check at /auth/callback. See ENTRA_API_CONNECTOR_SETUP.md.
+
+    Response shapes follow Microsoft's API connector contract: a plain
+    {"version": "1.0.0", "action": "Continue"} lets sign-up proceed; a 400
+    with a "userMessage" blocks it and shows that message on the sign-up
+    page.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    if not _connector_authenticated(request):
+        return HttpResponseForbidden("invalid connector credentials")
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return HttpResponseBadRequest("invalid JSON")
+
+    email = payload.get("email")
+    provisioned = bool(
+        email and User.objects.filter(email__iexact=email, is_active=True).exists()
+    )
+    if not provisioned:
+        return JsonResponse(
+            {
+                "version": "1.0.0",
+                "status": 400,
+                "userMessage": (
+                    "This email hasn't been invited. Contact an admin to "
+                    "request access before signing up."
+                ),
+            },
+            status=400,
+        )
+
+    return JsonResponse({"version": "1.0.0", "action": "Continue"})
 
 
 def _serialize_user(u):

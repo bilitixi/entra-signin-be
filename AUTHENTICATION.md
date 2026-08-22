@@ -100,6 +100,29 @@ console instead (fine for local dev, not for real users). If sending fails,
 the response reports `invite_email_sent: false` and (for the opt-in path
 only) returns the temp password once as a fallback so it isn't lost.
 
+## §6c. Blocking sign-up for uninvited emails (API connector)
+
+Self-service sign-up (§6b) has a gap on its own: Entra creates the account
+entirely inside itself before your app is ever consulted, so anyone —
+invited or not — can complete a real sign-up. `/auth/callback`'s
+invite-only check then rejects their *app access*, but the Entra identity
+they created still exists, unused, in your tenant.
+
+`POST /auth/entra-connector/presignup` (`accounts/views.py:presignup_check`)
+closes this: Entra's **API connectors** feature calls this endpoint
+*during* sign-up, at the "Before creating the user" step, before the
+account is created. It checks the submitted email against the `User` table
+and returns Microsoft's continuation/validation-error response shape — a
+plain `{"version": "1.0.0", "action": "Continue"}` on 200 lets sign-up
+proceed; a 400 with `userMessage` blocks it and shows that message right on
+the sign-up page.
+
+Authenticated with HTTP Basic (`ENTRA_CONNECTOR_USERNAME`/`_PASSWORD`) —
+Entra calls this endpoint directly, not through the SPA, so there's no
+session cookie to check. Fails closed: unset credentials reject every call
+rather than silently accepting. Wiring the connector into the user flow is
+a portal step — see `ENTRA_API_CONNECTOR_SETUP.md`.
+
 ## §9b. Frontend error handling on sign-in rejection
 
 `/auth/callback` never shows Django's own 403/400 page for a rejected
