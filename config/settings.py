@@ -111,6 +111,25 @@ FRONTEND_POST_LOGOUT_URL = env("FRONTEND_POST_LOGOUT_URL", default="http://local
 # see ENTRA_PORTAL_SETUP.md §5b.
 ENTRA_CIAM_DOMAIN = env("ENTRA_CIAM_DOMAIN", default="")
 
+# Base URL of *this* backend (not the frontend) — used to build the sign-in
+# link sent in the account-setup email (accounts/emails.py).
+BACKEND_BASE_URL = env("BACKEND_BASE_URL", default="http://localhost:8000")
+
+# Account-setup emails (accounts/emails.py). Falls back to printing emails
+# to the console when EMAIL_HOST isn't set, so local dev works with no SMTP
+# server — set real values before go-live.
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@example.com")
+EMAIL_BACKEND = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend"
+)
+
 # Session/cookie config — required for the React SPA to work cross-request
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True

@@ -76,15 +76,28 @@ requiring an admin to create it manually in the portal first. It:
 3. Records the returned Entra object id on the local `User` row immediately
    — pre-linking it, rather than waiting for the `entra_object_id is None`
    branch in `callback()` to fire on first sign-in.
-4. Returns the temp password in the API response **once** — it is never
-   stored — so the caller can relay it to the person.
+4. Emails the temp password + a sign-in link to the person directly
+   (`accounts/emails.py:send_account_setup_email`) rather than relying on
+   the admin to relay it. If the email fails to send (SMTP unreachable,
+   misconfigured, etc.), the password is returned in the API response once
+   as a fallback so it isn't lost — `invite_email_sent: false` in the
+   response signals this happened.
 
 Because of step 2, the person's very first "Sign in" click lands them on
 Microsoft's forced password-change screen rather than a normal login — that
-*is* their account setup. Requires the Graph application permission
-`User.ReadWrite.All` with admin consent (§7) and `ENTRA_CIAM_DOMAIN` set;
-without either, `POST /users` falls back to local-row-only provisioning
-(pass `create_entra_identity: false` to always skip the Entra call).
+*is* their account setup. When they finish it and land at `/auth/callback`,
+the existing invite-only check (§2 step 4 — `User.objects.get(email__iexact=email)`)
+is exactly the "does the account email match the User table" verification;
+no separate check was needed since the Entra identity's sign-in email *is*
+what we provisioned it with.
+
+Requires the Graph application permission `User.ReadWrite.All` with admin
+consent (§7), `ENTRA_CIAM_DOMAIN` set, and real SMTP settings (`EMAIL_HOST`
+etc.) for the email to actually deliver — without SMTP configured, emails
+print to the console instead (fine for local dev, not for real users).
+Without `ENTRA_CIAM_DOMAIN`, `POST /users` falls back to local-row-only
+provisioning (pass `create_entra_identity: false` to always skip the Entra
+call).
 
 ## §7. Tenant / App Registration prerequisites
 

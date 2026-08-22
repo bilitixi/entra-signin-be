@@ -15,7 +15,7 @@ from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
 from urllib.parse import urlencode
 
-from . import graph
+from . import emails, graph
 from .models import Role, User
 
 
@@ -202,9 +202,15 @@ def users_collection(request):
         )
         body = _serialize_user(user)
         if temp_password:
-            # Shown once — not stored anywhere. The person must change it
-            # (forceChangePasswordNextSignIn) the moment they sign in.
-            body["temp_password"] = temp_password
+            try:
+                emails.send_account_setup_email(email, display_name, temp_password)
+                body["invite_email_sent"] = True
+            except Exception as exc:  # SMTP misconfigured/unreachable, etc.
+                # Don't lose the password just because the email didn't go
+                # out — surface it so the admin can relay it manually.
+                body["invite_email_sent"] = False
+                body["email_error"] = str(exc)
+                body["temp_password"] = temp_password
         return JsonResponse(body, status=201)
 
     if request.method == "GET":
