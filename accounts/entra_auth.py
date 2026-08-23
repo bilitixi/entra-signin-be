@@ -21,10 +21,20 @@ class TokenInvalid(Exception):
     pass
 
 
+def _tenant_issuer_base():
+    """Tokens Entra issues for custom authentication extension calls put
+    the tenant GUID in the ciamlogin.com subdomain, not the human-friendly
+    tenant name that ENTRA_AUTHORITY uses for normal sign-in requests —
+    both address the same tenant, but only this form matches the token's
+    actual `iss` claim. Confirmed by comparing a real rejected token's
+    logged issuer against ENTRA_AUTHORITY's."""
+    return f"https://{settings.ENTRA_TENANT_ID}.ciamlogin.com/{settings.ENTRA_TENANT_ID}"
+
+
 def _get_jwks_client():
     global _jwks_client
     if _jwks_client is None:
-        _jwks_client = PyJWKClient(f"{settings.ENTRA_AUTHORITY}/discovery/v2.0/keys")
+        _jwks_client = PyJWKClient(f"{_tenant_issuer_base()}/discovery/v2.0/keys")
     return _jwks_client
 
 
@@ -41,7 +51,7 @@ def validate_custom_extension_token(auth_header):
     if not settings.ENTRA_CUSTOM_EXTENSION_APP_ID:
         raise TokenInvalid("ENTRA_CUSTOM_EXTENSION_APP_ID not configured")
 
-    expected_issuer = f"{settings.ENTRA_AUTHORITY}/v2.0"
+    expected_issuer = f"{_tenant_issuer_base()}/v2.0"
     try:
         signing_key = _get_jwks_client().get_signing_key_from_jwt(token).key
         claims = jwt.decode(
