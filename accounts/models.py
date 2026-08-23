@@ -31,8 +31,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     address = models.CharField(max_length=255, blank=True)
 
     # Set on first successful Entra sign-in; used afterwards to detect
-    # identity mismatch (README §2.1, AUTHENTICATION.md).
-    entra_object_id = models.CharField(max_length=64, null=True, blank=True, unique=True)
+    # identity mismatch (README §2.1, AUTHENTICATION.md). default=None is
+    # required, not just null=True — without an explicit default, Django's
+    # CharField falls back to "" (not None) whenever a User is created
+    # without passing this field (e.g. manage.py shell), which broke the
+    # `entra_object_id is None` check in auth/views.py:callback and caused
+    # every such user's first sign-in to be rejected as identity_mismatch.
+    entra_object_id = models.CharField(
+        max_length=64, null=True, blank=True, unique=True, default=None
+    )
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
