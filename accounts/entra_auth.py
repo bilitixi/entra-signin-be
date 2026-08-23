@@ -41,6 +41,7 @@ def validate_custom_extension_token(auth_header):
     if not settings.ENTRA_CUSTOM_EXTENSION_APP_ID:
         raise TokenInvalid("ENTRA_CUSTOM_EXTENSION_APP_ID not configured")
 
+    expected_issuer = f"{settings.ENTRA_AUTHORITY}/v2.0"
     try:
         signing_key = _get_jwks_client().get_signing_key_from_jwt(token).key
         claims = jwt.decode(
@@ -48,10 +49,21 @@ def validate_custom_extension_token(auth_header):
             signing_key,
             algorithms=["RS256"],
             audience=settings.ENTRA_CUSTOM_EXTENSION_APP_ID,
-            issuer=f"{settings.ENTRA_AUTHORITY}/v2.0",
+            issuer=expected_issuer,
         )
     except jwt.PyJWTError as exc:
-        raise TokenInvalid(f"token validation failed: {exc}") from exc
+        # Decode without verifying (purely for logging what actually
+        # mismatched — never trust these claims for authorization) so the
+        # log line shows both sides instead of just "invalid".
+        try:
+            unverified = jwt.decode(token, options={"verify_signature": False})
+        except jwt.PyJWTError:
+            unverified = {}
+        raise TokenInvalid(
+            f"token validation failed: {exc} | expected iss={expected_issuer!r} "
+            f"aud={settings.ENTRA_CUSTOM_EXTENSION_APP_ID!r} | "
+            f"got iss={unverified.get('iss')!r} aud={unverified.get('aud')!r}"
+        ) from exc
 
     caller = claims.get("azp") or claims.get("appid")
     if caller != MS_CUSTOM_EXTENSION_CALLER_APPID:
