@@ -234,13 +234,27 @@ def attribute_collection_submit(request):
     except json.JSONDecodeError:
         return HttpResponseBadRequest("invalid JSON")
 
-    # Handles both a top-level "data" wrapper and a flat body, since this
-    # is a preview API and the exact envelope isn't fully pinned down in
-    # public docs at the time this was written — check the logged raw
-    # payload below if email ever comes back empty for a real request.
+    # Confirmed against a real request payload: for a local (email+password)
+    # account, the email lives under userSignUpInfo.identities — it's the
+    # person's sign-in identity, not a regular form attribute, so
+    # userSignUpInfo.attributes.email is empty even though attributes has
+    # other collected fields. Handles both a top-level "data" wrapper and a
+    # flat body since this is a preview API.
     data = payload.get("data", payload)
-    attributes = (data.get("userSignUpInfo") or {}).get("attributes") or {}
-    email = (attributes.get("email") or {}).get("value")
+    sign_up_info = data.get("userSignUpInfo") or {}
+    email = next(
+        (
+            identity.get("issuerAssignedId")
+            for identity in sign_up_info.get("identities") or []
+            if identity.get("signInType") == "emailAddress"
+        ),
+        None,
+    )
+    if not email:
+        # Fallback in case a different identity provider ever puts it in
+        # attributes instead.
+        attributes = sign_up_info.get("attributes") or {}
+        email = (attributes.get("email") or {}).get("value")
     if not email:
         logger.warning("attribute_collection_submit: no email found in payload: %s", payload)
 
