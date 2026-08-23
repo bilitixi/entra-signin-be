@@ -262,6 +262,18 @@ def attribute_collection_submit(request):
         email and User.objects.filter(email__iexact=email, is_active=True).exists()
     )
 
+    if provisioned:
+        # Entra enforces unique emails for local accounts, so reaching this
+        # event at all means Entra is about to create a *new* identity for
+        # this email — which is only possible if no Entra identity for it
+        # currently exists. Any entra_object_id still saved on the local
+        # row is therefore guaranteed stale (pointing at a deleted/replaced
+        # identity), so clear it now rather than waiting for it to surface
+        # as an identity_mismatch rejection at /auth/callback later.
+        User.objects.filter(
+            email__iexact=email, entra_object_id__isnull=False
+        ).update(entra_object_id=None)
+
     if not provisioned:
         action = {
             "@odata.type": "microsoft.graph.attributeCollectionSubmit.showBlockPage",
