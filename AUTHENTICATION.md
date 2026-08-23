@@ -100,7 +100,7 @@ console instead (fine for local dev, not for real users). If sending fails,
 the response reports `invite_email_sent: false` and (for the opt-in path
 only) returns the temp password once as a fallback so it isn't lost.
 
-## §6c. Blocking sign-up for uninvited emails (API connector)
+## §6c. Blocking sign-up for uninvited emails
 
 Self-service sign-up (§6b) has a gap on its own: Entra creates the account
 entirely inside itself before your app is ever consulted, so anyone —
@@ -108,20 +108,31 @@ invited or not — can complete a real sign-up. `/auth/callback`'s
 invite-only check then rejects their *app access*, but the Entra identity
 they created still exists, unused, in your tenant.
 
-`POST /auth/entra-connector/presignup` (`accounts/views.py:presignup_check`)
-closes this: Entra's **API connectors** feature calls this endpoint
-*during* sign-up, at the "Before creating the user" step, before the
-account is created. It checks the submitted email against the `User` table
-and returns Microsoft's continuation/validation-error response shape — a
-plain `{"version": "1.0.0", "action": "Continue"}` on 200 lets sign-up
-proceed; a 400 with `userMessage` blocks it and shows that message right on
-the sign-up page.
+Two endpoints close this, depending on tenant type — both check the
+submitted email against the `User` table before the account is created and
+reject sign-up outright if it isn't found, so no orphan Entra identity gets
+created for an uninvited email:
 
-Authenticated with HTTP Basic (`ENTRA_CONNECTOR_USERNAME`/`_PASSWORD`) —
-Entra calls this endpoint directly, not through the SPA, so there's no
-session cookie to check. Fails closed: unset credentials reject every call
-rather than silently accepting. Wiring the connector into the user flow is
-a portal step — see `ENTRA_API_CONNECTOR_SETUP.md`.
+- **`POST /auth/entra-connector/presignup`**
+  (`accounts/views.py:presignup_check`) — for workforce tenants' **API
+  connectors** feature (HTTP Basic auth via
+  `ENTRA_CONNECTOR_USERNAME`/`_PASSWORD`), the older mechanism.
+- **`POST /auth/entra-connector/attribute-collection-submit`**
+  (`accounts/views.py:attribute_collection_submit`) — for External ID
+  (CIAM) tenants' **custom authentication extensions** feature, the
+  current mechanism for these tenants. Entra authenticates itself with a
+  bearer token (validated in `accounts/entra_auth.py` — issuer, audience
+  scoped to a dedicated app registration `ENTRA_CUSTOM_EXTENSION_APP_ID`,
+  and that the caller is Entra's own well-known extension-caller service
+  principal) rather than HTTP Basic, and responses use Graph-style actions
+  (`continueWithDefaultBehavior` / `showBlockPage`) instead of the API
+  connector's plain shape.
+
+Both fail closed: missing/unset credentials or an invalid token reject
+every call rather than silently accepting. Wiring either one into the
+portal is a manual step — see `ENTRA_API_CONNECTOR_SETUP.md`, which covers
+the CIAM/custom-authentication-extension path (what this project's tenant
+actually uses).
 
 ## §9b. Frontend error handling on sign-in rejection
 
