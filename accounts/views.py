@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import secrets
 
 import msal
@@ -16,8 +17,10 @@ from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
 from urllib.parse import urlencode
 
-from . import emails, graph
+from . import emails, entra_auth, graph
 from .models import Role, User
+
+logger = logging.getLogger(__name__)
 
 
 def _msal_app():
@@ -176,6 +179,73 @@ def presignup_check(request):
         )
 
     return JsonResponse({"version": "1.0.0", "action": "Continue"})
+
+
+@csrf_exempt
+def attribute_collection_submit(request):
+    """Custom authentication extension target for Entra External ID
+    (CIAM) tenants' OnAttributeCollectionSubmit event — the mechanism that
+    replaced "API connectors" for these tenants, wired up under a user
+    flow's "Custom authentication extensions" page in the portal, not
+    "API connectors" (that option doesn't exist for CIAM tenants). Called
+    by Entra itself before the account is created, authenticated with an
+    Entra-issued bearer token rather than the SPA's session cookie — see
+    accounts/entra_auth.py and ENTRA_API_CONNECTOR_SETUP.md.
+
+    Same purpose as presignup_check() above (reject sign-up for emails
+    never provisioned via /users), different transport: Microsoft's
+    Graph-style response actions instead of the older API connector's
+    plain {"action": "Continue"} shape.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+    try:
+        entra_auth.validate_custom_extension_token(
+            request.META.get("HTTP_AUTHORIZATION", "")
+        )
+    except entra_auth.TokenInvalid as exc:
+        return HttpResponseForbidden(str(exc))
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return HttpResponseBadRequest("invalid JSON")
+
+    # Handles both a top-level "data" wrapper and a flat body, since this
+    # is a preview API and the exact envelope isn't fully pinned down in
+    # public docs at the time this was written — check the logged raw
+    # payload below if email ever comes back empty for a real request.
+    data = payload.get("data", payload)
+    attributes = (data.get("userSignUpInfo") or {}).get("attributes") or {}
+    email = (attributes.get("email") or {}).get("value")
+    if not email:
+        logger.warning("attribute_collection_submit: no email found in payload: %s", payload)
+
+    provisioned = bool(
+        email and User.objects.filter(email__iexact=email, is_active=True).exists()
+    )
+
+    if not provisioned:
+        action = {
+            "@odata.type": "microsoft.graph.attributeCollectionSubmit.showBlockPage",
+            "message": (
+                "This email hasn't been invited. Contact an admin to "
+                "request access before signing up."
+            ),
+        }
+    else:
+        action = {
+            "@odata.type": "microsoft.graph.attributeCollectionSubmit.continueWithDefaultBehavior"
+        }
+
+    return JsonResponse(
+        {
+            "data": {
+                "@odata.type": "microsoft.graph.onAttributeCollectionSubmitResponseData",
+                "actions": [action],
+            }
+        }
+    )
 
 
 def _serialize_user(u):

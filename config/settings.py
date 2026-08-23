@@ -130,13 +130,20 @@ EMAIL_BACKEND = (
     else "django.core.mail.backends.console.EmailBackend"
 )
 
-# Credentials Entra's API connector authenticates with (HTTP Basic) when it
-# calls POST /auth/entra-connector/presignup during self-service sign-up —
-# see accounts/views.py:presignup_check and ENTRA_API_CONNECTOR_SETUP.md.
-# Leave unset locally to reject all connector calls (fail closed); required
-# once you wire up the API connector in the portal.
+# Legacy path: credentials for the HTTP-Basic-authenticated API connector
+# (POST /auth/entra-connector/presignup) — the mechanism used by workforce
+# tenants' "External Identities" self-service sign-up. Leave unset to
+# reject all calls (fail closed). See accounts/views.py:presignup_check.
 ENTRA_CONNECTOR_USERNAME = env("ENTRA_CONNECTOR_USERNAME", default="")
 ENTRA_CONNECTOR_PASSWORD = env("ENTRA_CONNECTOR_PASSWORD", default="")
+
+# Current path for External ID (CIAM) tenants: the dedicated app
+# registration's Application (client) ID for the "custom authentication
+# extension" Entra calls at the OnAttributeCollectionSubmit event. Entra
+# authenticates itself to POST /auth/entra-connector/attribute-collection-submit
+# with a bearer token audience-scoped to this app ID — see
+# accounts/entra_auth.py and ENTRA_API_CONNECTOR_SETUP.md.
+ENTRA_CUSTOM_EXTENSION_APP_ID = env("ENTRA_CUSTOM_EXTENSION_APP_ID", default="")
 
 # Session/cookie config — required for the React SPA to work cross-request
 SESSION_COOKIE_SECURE = not DEBUG

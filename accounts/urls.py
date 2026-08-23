@@ -12,6 +12,11 @@ urlpatterns = [
         views.presignup_check,
         name="auth-presignup-check",
     ),
+    path(
+        "auth/entra-connector/attribute-collection-submit",
+        views.attribute_collection_submit,
+        name="auth-attribute-collection-submit",
+    ),
     path("users", views.users_collection, name="users-collection"),
     path("users/<uuid:user_id>", views.user_detail, name="user-detail"),
 ]
