@@ -58,6 +58,11 @@ def callback(request):
     state = request.GET.get("state")
     nonce = cache.get(f"oidc_state:{state}")
     if not state or nonce is None:
+        # Common causes: the server restarted between /auth/login and this
+        # request (LocMemCache is in-process, wiped on restart — see
+        # AUTHENTICATION.md), the link was opened twice, or more than 10
+        # minutes passed between the two steps (cache TTL).
+        logger.warning("auth/callback missing/expired state=%s", state)
         return _redirect_with_error("invalid_state")
     cache.delete(f"oidc_state:{state}")
 
@@ -67,10 +72,19 @@ def callback(request):
         redirect_uri=settings.ENTRA_REDIRECT_URI,
     )
     if "error" in result:
+        # Printed here, not sent to the browser (could leak config details) —
+        # check this log line first whenever the frontend shows "Sign-in
+        # with Microsoft failed".
+        logger.error(
+            "auth/callback token exchange failed: %s: %s",
+            result.get("error"),
+            result.get("error_description"),
+        )
         return _redirect_with_error("login_failed")
 
     claims = result["id_token_claims"]
     if claims.get("nonce") != nonce:
+        logger.warning("auth/callback nonce mismatch for state=%s", state)
         return _redirect_with_error("invalid_state")
 
     email = claims.get("email") or claims.get("preferred_username")
@@ -82,15 +96,21 @@ def callback(request):
     try:
         user = User.objects.get(email__iexact=email)
     except User.DoesNotExist:
+        logger.info("auth/callback rejected unprovisioned email=%s", email)
         return _redirect_with_error("not_provisioned")
 
     if not user.is_active:
+        logger.info("auth/callback rejected deactivated user email=%s", email)
         return _redirect_with_error("deactivated")
 
     if user.entra_object_id is None:
         user.entra_object_id = oid
         user.save(update_fields=["entra_object_id"])
     elif user.entra_object_id != oid:
+        logger.warning(
+            "auth/callback identity mismatch email=%s existing_oid=%s new_oid=%s",
+            email, user.entra_object_id, oid,
+        )
         return _redirect_with_error("identity_mismatch")
 
     django_login(request, user)
