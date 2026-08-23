@@ -224,6 +224,9 @@ def attribute_collection_submit(request):
             request.META.get("HTTP_AUTHORIZATION", "")
         )
     except entra_auth.TokenInvalid as exc:
+        # Printed here, not sent to Entra/the browser — check this log line
+        # whenever the custom extension call comes back 403.
+        logger.warning("attribute_collection_submit: token rejected: %s", exc)
         return HttpResponseForbidden(str(exc))
 
     try:
