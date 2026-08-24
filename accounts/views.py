@@ -234,19 +234,45 @@ def attribute_collection_submit(request):
     except json.JSONDecodeError:
         return HttpResponseBadRequest("invalid JSON")
 
-    # Handles both a top-level "data" wrapper and a flat body, since this
-    # is a preview API and the exact envelope isn't fully pinned down in
-    # public docs at the time this was written — check the logged raw
-    # payload below if email ever comes back empty for a real request.
+    # Confirmed against a real request payload: for a local (email+password)
+    # account, the email lives under userSignUpInfo.identities — it's the
+    # person's sign-in identity, not a regular form attribute, so
+    # userSignUpInfo.attributes.email is empty even though attributes has
+    # other collected fields. Handles both a top-level "data" wrapper and a
+    # flat body since this is a preview API.
     data = payload.get("data", payload)
-    attributes = (data.get("userSignUpInfo") or {}).get("attributes") or {}
-    email = (attributes.get("email") or {}).get("value")
+    sign_up_info = data.get("userSignUpInfo") or {}
+    email = next(
+        (
+            identity.get("issuerAssignedId")
+            for identity in sign_up_info.get("identities") or []
+            if identity.get("signInType") == "emailAddress"
+        ),
+        None,
+    )
+    if not email:
+        # Fallback in case a different identity provider ever puts it in
+        # attributes instead.
+        attributes = sign_up_info.get("attributes") or {}
+        email = (attributes.get("email") or {}).get("value")
     if not email:
         logger.warning("attribute_collection_submit: no email found in payload: %s", payload)
 
     provisioned = bool(
         email and User.objects.filter(email__iexact=email, is_active=True).exists()
     )
+
+    if provisioned:
+        # Entra enforces unique emails for local accounts, so reaching this
+        # event at all means Entra is about to create a *new* identity for
+        # this email — which is only possible if no Entra identity for it
+        # currently exists. Any entra_object_id still saved on the local
+        # row is therefore guaranteed stale (pointing at a deleted/replaced
+        # identity), so clear it now rather than waiting for it to surface
+        # as an identity_mismatch rejection at /auth/callback later.
+        User.objects.filter(
+            email__iexact=email, entra_object_id__isnull=False
+        ).update(entra_object_id=None)
 
     if not provisioned:
         action = {
