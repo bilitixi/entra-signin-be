@@ -92,7 +92,7 @@ def callback(request):
 
     # This is the check the frontend's "email doesn't match" error maps to:
     # the address the person just signed up/in with in Entra must already
-    # exist as a locally-provisioned User row (invite-only, ENTRA_SIGNIN_SETUP.md §0).
+    # exist as a locally-provisioned User row (invite-only, BACKEND_API_FLOW.md §3.2).
     try:
         user = User.objects.get(email__iexact=email)
     except User.DoesNotExist:
@@ -337,7 +337,7 @@ def _require_admin(request):
 def users_collection(request):
     """Roster intake: POST /users (admin-only). GET lists provisioned users.
 
-    Referenced by ENTRA_SIGNIN_SETUP.md §0 — a local User row must exist
+    Referenced by BACKEND_API_FLOW.md §3.2 — a local User row must exist
     *before* someone can sign in via Entra; the callback view never creates
     one on the fly.
     """
@@ -425,7 +425,7 @@ def users_collection(request):
 @csrf_exempt
 def user_detail(request, user_id):
     """PATCH /users/{id} — role changes take effect immediately (AuthenticationMiddleware
-    re-fetches the user on every request, see ENTRA_SIGNIN_SETUP.md A6)."""
+    re-fetches the user on every request, see BACKEND_API_FLOW.md §2)."""
     if not _require_admin(request):
         return HttpResponseForbidden("admin role required")
 

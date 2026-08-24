@@ -1,8 +1,8 @@
 """
 Django settings for the Entra ID sign-in project.
 
-See ENTRA_SIGNIN_SETUP.md Part A and AUTHENTICATION.md for the rationale
-behind the Entra-related settings below.
+See BACKEND_API_FLOW.md and AUTHENTICATION.md for the rationale behind
+the Entra-related settings below.
 """
 from pathlib import Path
 
@@ -90,7 +90,7 @@ CACHES = {
     }
 }
 
-# --- Entra ID (AUTHENTICATION.md §7 / ENTRA_SIGNIN_SETUP.md A2-A3) ---
+# --- Entra ID (AUTHENTICATION.md §7 / ENTRA_PORTAL_SETUP.md A2-A3) ---
 ENTRA_TENANT_ID = env("ENTRA_TENANT_ID", default="")
 ENTRA_CLIENT_ID = env("ENTRA_CLIENT_ID", default="")
 ENTRA_CLIENT_SECRET = env("ENTRA_CLIENT_SECRET", default="")
