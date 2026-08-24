@@ -109,31 +109,22 @@ invited or not — can complete a real sign-up. `/auth/callback`'s
 invite-only check then rejects their *app access*, but the Entra identity
 they created still exists, unused, in your tenant.
 
-Two endpoints close this, depending on tenant type — both check the
-submitted email against the `User` table before the account is created and
-reject sign-up outright if it isn't found, so no orphan Entra identity gets
-created for an uninvited email:
+**`POST /auth/entra-connector/attribute-collection-submit`**
+(`accounts/views.py:attribute_collection_submit`) closes this — it checks
+the submitted email against the `User` table before the account is
+created and rejects sign-up outright if it isn't found, so no orphan
+Entra identity gets created for an uninvited email. It's the endpoint
+behind External ID (CIAM) tenants' **custom authentication extensions**
+feature (what this project's tenant uses). Entra authenticates itself
+with a bearer token (validated in `accounts/entra_auth.py` — issuer,
+audience scoped to a dedicated app registration
+`ENTRA_CUSTOM_EXTENSION_APP_ID`, and that the caller is Entra's own
+well-known extension-caller service principal), and responses use
+Graph-style actions (`continueWithDefaultBehavior` / `showBlockPage`).
 
-- **`POST /auth/entra-connector/presignup`**
-  (`accounts/views.py:presignup_check`) — for workforce tenants' **API
-  connectors** feature (HTTP Basic auth via
-  `ENTRA_CONNECTOR_USERNAME`/`_PASSWORD`), the older mechanism.
-- **`POST /auth/entra-connector/attribute-collection-submit`**
-  (`accounts/views.py:attribute_collection_submit`) — for External ID
-  (CIAM) tenants' **custom authentication extensions** feature, the
-  current mechanism for these tenants. Entra authenticates itself with a
-  bearer token (validated in `accounts/entra_auth.py` — issuer, audience
-  scoped to a dedicated app registration `ENTRA_CUSTOM_EXTENSION_APP_ID`,
-  and that the caller is Entra's own well-known extension-caller service
-  principal) rather than HTTP Basic, and responses use Graph-style actions
-  (`continueWithDefaultBehavior` / `showBlockPage`) instead of the API
-  connector's plain shape.
-
-Both fail closed: missing/unset credentials or an invalid token reject
-every call rather than silently accepting. Wiring either one into the
-portal is a manual step — see `ENTRA_PORTAL_SETUP.md` Part B, which covers
-the CIAM/custom-authentication-extension path (what this project's tenant
-actually uses).
+Fails closed: an unconfigured `ENTRA_CUSTOM_EXTENSION_APP_ID` or an
+invalid token rejects every call rather than silently accepting. Wiring
+it into the portal is a manual step — see `ENTRA_PORTAL_SETUP.md` Part B.
 
 ## §9b. Frontend error handling on sign-in rejection
 

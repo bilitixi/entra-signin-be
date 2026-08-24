@@ -29,7 +29,7 @@ assume already exists).
       │  302 → Entra ─────────────────────────────────────────────▶
       │                                                     (sign-up/in + MFA)
       │                                        Entra → POST /auth/entra-connector/*
-      │                                        (only during sign-up, see §3.4/§3.5)
+      │                                        (only during sign-up, see §3.4)
       │  ◀───────────────────────────────────────────────── 302 back with ?code
       │  GET /auth/callback?code=...──────────▶
       │                          exchange code, validate,
@@ -122,26 +122,7 @@ param and renders a real error screen (`_redirect_with_error`, mirrored in
    silently re-authenticating off Entra's cookie. Skipping this step would
    make logout local-only and misleading.
 
-### 3.4. `POST /auth/entra-connector/presignup` — legacy pre-signup block
-
-**Auth:** HTTP Basic (`ENTRA_CONNECTOR_USERNAME`/`PASSWORD`), fails closed
-if either is unset. **Caller:** Entra's classic **API connector**
-mechanism, from the "Before creating the user" step of a self-service
-sign-up user flow — a mechanism that only exists for workforce/B2B tenants,
-**not** the External ID (CIAM) tenant this project actually targets (see
-§3.5 for the one that applies here). Kept for completeness / non-CIAM
-reuse.
-
-1. Reject non-POST, reject bad/missing Basic credentials.
-2. Parse `email` out of the JSON body.
-3. No active `User` row for that email → respond
-   `{"version": "1.0.0", "status": 400, "userMessage": "..."}` with HTTP
-   400 — Entra renders `userMessage` directly on the sign-up page and
-   blocks account creation.
-4. Otherwise → `{"version": "1.0.0", "action": "Continue"}`, sign-up
-   proceeds.
-
-### 3.5. `POST /auth/entra-connector/attribute-collection-submit` — CIAM pre-signup block
+### 3.4. `POST /auth/entra-connector/attribute-collection-submit` — CIAM pre-signup block
 
 **Auth:** Entra-issued bearer token, validated by
 `entra_auth.validate_custom_extension_token`: signature verified against
@@ -154,12 +135,16 @@ must be Entra's own well-known extension-caller service principal
 validly-signed token for that audience. Fails closed if
 `ENTRA_CUSTOM_EXTENSION_APP_ID` is unset. **Caller:** Entra's **custom
 authentication extension** mechanism (`OnAttributeCollectionSubmit`
-event) — the CIAM-tenant replacement for the API connector in §3.4, wired
-up under a user flow's own "Custom authentication extensions" page, not a
-top-level "API connectors" page (see `ENTRA_PORTAL_SETUP.md` Part B).
+event), wired up under a user flow's own "Custom authentication
+extensions" page (see `ENTRA_PORTAL_SETUP.md` Part B).
 
-Same purpose as §3.4 — reject sign-up for an email never provisioned via
-`POST /users` — different transport and payload shape:
+Purpose: reject sign-up outright for an email never provisioned via
+`POST /users`, closing the gap where anyone could otherwise complete a
+real Entra sign-up even though they'd fail the invite-only check at
+`/auth/callback` — without this endpoint, `/auth/callback`'s check
+(§3.2 step 5) still protects sign-*in*, but an uninvited person could
+still complete Entra sign-*up* and end up with a real (if useless) Entra
+account.
 
 1. Validate the bearer token (above); invalid → 403, logged server-side
    (never sent back to Entra/the browser).
@@ -187,13 +172,7 @@ Same purpose as §3.4 — reject sign-up for an email never provisioned via
      with a `message`, rendered on the sign-up page, and no Entra account
      gets created.
 
-Both connector endpoints exist so that an uninvited email is blocked
-**before** Entra ever creates a real identity for it — without one of
-them wired up, `/auth/callback`'s invite-only check (§3.2 step 5) still
-protects sign-*in*, but anyone could complete Entra sign-*up* and get a
-real (if useless) Entra account.
-
-### 3.6. `GET /auth/me` — who am I
+### 3.5. `GET /auth/me` — who am I
 
 **Auth:** session. **Caller:** SPA, on load (`AuthContext`'s effect) and
 after every `/auth/login` round trip.
@@ -205,7 +184,7 @@ after every `/auth/login` round trip.
   `AuthenticationMiddleware` note in §2), never cached client-side beyond
   the current page load.
 
-### 3.7. `POST /users` and `GET /users` — roster intake
+### 3.6. `POST /users` and `GET /users` — roster intake
 
 **Auth:** admin (`role == icib_admin`) session. **Caller:** SPA admin UI.
 
@@ -234,7 +213,7 @@ after every `/auth/login` round trip.
 
 **GET** (list): admin-only, returns every provisioned user.
 
-### 3.8. `GET/PATCH /users/{id}` — inspect / update
+### 3.7. `GET/PATCH /users/{id}` — inspect / update
 
 **Auth:** admin session. **Caller:** SPA admin UI.
 
@@ -287,7 +266,7 @@ deactivated user can never reach it):
 **A. Invite → self-service sign-up → sign-in (default)**
 `POST /users` (no `create_entra_identity`) → invite email → person opens
 `/auth/login` → Entra "Sign up now" → sets password + MFA → (if wired,
-§3.5 checks the email is provisioned) → Entra creates the identity →
+§3.4 checks the email is provisioned) → Entra creates the identity →
 redirects to `/auth/callback` → row found, `entra_object_id` linked →
 session cookie set → SPA lands signed in.
 
@@ -299,7 +278,7 @@ password → Entra forces a password change → `/auth/callback` finds the
 row, `entra_object_id` already matches → signed in.
 
 **C. Uninvited email tries to sign up**
-Entra "Sign up now" → §3.4/§3.5 rejects before the identity is created
+Entra "Sign up now" → §3.4 rejects before the identity is created
 (block page shown, no Entra account created) → *or*, if neither connector
 is wired up, the identity gets created anyway but `/auth/callback` still
 rejects at sign-in time (`not_provisioned`) — the account just sits in
