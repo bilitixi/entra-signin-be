@@ -164,7 +164,7 @@ def presignup_check(request):
     the frontend. Rejects sign-up outright for emails that were never
     provisioned via /users, closing the gap where anyone could otherwise
     create a real Entra identity even though they'd fail the invite-only
-    check at /auth/callback. See ENTRA_API_CONNECTOR_SETUP.md.
+    check at /auth/callback. See ENTRA_PORTAL_SETUP.md Part B.
 
     Response shapes follow Microsoft's API connector contract: a plain
     {"version": "1.0.0", "action": "Continue"} lets sign-up proceed; a 400
@@ -210,7 +210,7 @@ def attribute_collection_submit(request):
     "API connectors" (that option doesn't exist for CIAM tenants). Called
     by Entra itself before the account is created, authenticated with an
     Entra-issued bearer token rather than the SPA's session cookie — see
-    accounts/entra_auth.py and ENTRA_API_CONNECTOR_SETUP.md.
+    accounts/entra_auth.py and ENTRA_PORTAL_SETUP.md Part B.
 
     Same purpose as presignup_check() above (reject sign-up for emails
     never provisioned via /users), different transport: Microsoft's

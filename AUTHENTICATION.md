@@ -130,7 +130,7 @@ created for an uninvited email:
 
 Both fail closed: missing/unset credentials or an invalid token reject
 every call rather than silently accepting. Wiring either one into the
-portal is a manual step — see `ENTRA_API_CONNECTOR_SETUP.md`, which covers
+portal is a manual step — see `ENTRA_PORTAL_SETUP.md` Part B, which covers
 the CIAM/custom-authentication-extension path (what this project's tenant
 actually uses).
 

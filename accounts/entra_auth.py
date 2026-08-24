@@ -2,7 +2,7 @@
 into this backend for a custom authentication extension event (e.g.
 OnAttributeCollectionSubmit) — a different mechanism from the API
 connector's HTTP Basic auth used in the older Azure AD B2C / workforce
-tenant "External Identities" experience. See ENTRA_API_CONNECTOR_SETUP.md.
+tenant "External Identities" experience. See ENTRA_PORTAL_SETUP.md Part B.
 """
 import jwt
 from django.conf import settings
