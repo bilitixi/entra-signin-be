@@ -17,7 +17,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     Accounts are provisioned locally first (roster intake / POST /users);
     Entra sign-in only ever links to an existing row by email, it never
-    creates one — see ENTRA_SIGNIN_SETUP.md §0 and auth/views.py:callback.
+    creates one — see BACKEND_API_FLOW.md §3.2 and auth/views.py:callback.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

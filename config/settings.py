@@ -1,8 +1,8 @@
 """
 Django settings for the Entra ID sign-in project.
 
-See ENTRA_SIGNIN_SETUP.md Part A and AUTHENTICATION.md for the rationale
-behind the Entra-related settings below.
+See BACKEND_API_FLOW.md and AUTHENTICATION.md for the rationale behind
+the Entra-related settings below.
 """
 from pathlib import Path
 
@@ -90,7 +90,7 @@ CACHES = {
     }
 }
 
-# --- Entra ID (AUTHENTICATION.md §7 / ENTRA_SIGNIN_SETUP.md A2-A3) ---
+# --- Entra ID (AUTHENTICATION.md §7 / ENTRA_PORTAL_SETUP.md A2-A3) ---
 ENTRA_TENANT_ID = env("ENTRA_TENANT_ID", default="")
 ENTRA_CLIENT_ID = env("ENTRA_CLIENT_ID", default="")
 ENTRA_CLIENT_SECRET = env("ENTRA_CLIENT_SECRET", default="")
@@ -108,7 +108,7 @@ FRONTEND_POST_LOGOUT_URL = env("FRONTEND_POST_LOGOUT_URL", default="http://local
 # Issuer for Graph-created "local account" identities (accounts/graph.py) —
 # your tenant's default domain, e.g. "contoso.onmicrosoft.com". Only needed
 # if provisioning users from /admin should also create their Entra identity;
-# see ENTRA_PORTAL_SETUP.md §5b.
+# see ENTRA_PORTAL_SETUP.md §A5b.
 ENTRA_CIAM_DOMAIN = env("ENTRA_CIAM_DOMAIN", default="")
 
 # Base URL of *this* backend (not the frontend) — used to build the sign-in
@@ -142,7 +142,7 @@ ENTRA_CONNECTOR_PASSWORD = env("ENTRA_CONNECTOR_PASSWORD", default="")
 # extension" Entra calls at the OnAttributeCollectionSubmit event. Entra
 # authenticates itself to POST /auth/entra-connector/attribute-collection-submit
 # with a bearer token audience-scoped to this app ID — see
-# accounts/entra_auth.py and ENTRA_API_CONNECTOR_SETUP.md.
+# accounts/entra_auth.py and ENTRA_PORTAL_SETUP.md Part B.
 ENTRA_CUSTOM_EXTENSION_APP_ID = env("ENTRA_CUSTOM_EXTENSION_APP_ID", default="")
 
 # Session/cookie config — required for the React SPA to work cross-request

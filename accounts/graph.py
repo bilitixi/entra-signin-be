@@ -2,7 +2,7 @@
 UI — distinct from the per-user MSAL flow in views.py used for sign-in.
 
 Requires the app registration to have the Graph **application** permission
-`User.ReadWrite.All`, with admin consent granted (ENTRA_PORTAL_SETUP.md §5b).
+`User.ReadWrite.All`, with admin consent granted (ENTRA_PORTAL_SETUP.md §A5b).
 Without that, create_local_account() raises GraphError with a 403 detail.
 """
 import secrets

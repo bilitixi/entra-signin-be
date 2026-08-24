@@ -14,11 +14,12 @@ python manage.py createsuperuser   # local admin for /admin and the users API
 python manage.py runserver 8000
 ```
 
-Follow `ENTRA_SIGNIN_SETUP.md` for the full, ordered setup checklist and
-`ENTRA_PORTAL_SETUP.md` for the exact Entra/Azure portal click-path
-(tenant, app registration, self-service sign-up user flow, MFA) that
-checklist assumes. `ENTRA_API_CONNECTOR_SETUP.md` covers the optional next
+Follow `ENTRA_PORTAL_SETUP.md` for the exact Entra/Azure portal
+click-path — Part A covers the core setup (tenant, app registration,
+self-service sign-up user flow, MFA); Part B covers the optional next
 step — blocking sign-up outright for emails that were never invited.
+See `BACKEND_API_FLOW.md` for what every endpoint below does and how
+they fit together end to end.
 
 ## §2.1 Data model
 

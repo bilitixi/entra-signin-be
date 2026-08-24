@@ -1,8 +1,9 @@
 # Authentication design — Entra ID sign-in
 
-This is the design/rationale companion to `ENTRA_SIGNIN_SETUP.md` (the
-task-oriented setup checklist) and `README.md` (API spec). Read this when a
-step in the setup doc needs justification.
+This is the design/rationale companion to `ENTRA_PORTAL_SETUP.md` (the
+portal setup checklist), `BACKEND_API_FLOW.md` (what each endpoint does
+and how they fit together), and `README.md` (API spec). Read this when a
+step in one of those docs needs justification.
 
 ## §2. Flow
 
@@ -130,7 +131,7 @@ created for an uninvited email:
 
 Both fail closed: missing/unset credentials or an invalid token reject
 every call rather than silently accepting. Wiring either one into the
-portal is a manual step — see `ENTRA_API_CONNECTOR_SETUP.md`, which covers
+portal is a manual step — see `ENTRA_PORTAL_SETUP.md` Part B, which covers
 the CIAM/custom-authentication-extension path (what this project's tenant
 actually uses).
 
@@ -145,8 +146,8 @@ screen instead of a bare Django page. Codes: `not_provisioned`,
 
 ## §7. Tenant / App Registration prerequisites
 
-See `ENTRA_SIGNIN_SETUP.md` §0 for the checklist. Summary of what must
-exist before Part A of that doc will work:
+See `ENTRA_PORTAL_SETUP.md` Part A for the checklist. Summary of what must
+exist before that doc's steps will work:
 
 - An Entra External ID tenant.
 - An App Registration with redirect URIs for every environment
