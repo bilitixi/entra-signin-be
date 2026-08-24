@@ -130,14 +130,7 @@ EMAIL_BACKEND = (
     else "django.core.mail.backends.console.EmailBackend"
 )
 
-# Legacy path: credentials for the HTTP-Basic-authenticated API connector
-# (POST /auth/entra-connector/presignup) — the mechanism used by workforce
-# tenants' "External Identities" self-service sign-up. Leave unset to
-# reject all calls (fail closed). See accounts/views.py:presignup_check.
-ENTRA_CONNECTOR_USERNAME = env("ENTRA_CONNECTOR_USERNAME", default="")
-ENTRA_CONNECTOR_PASSWORD = env("ENTRA_CONNECTOR_PASSWORD", default="")
-
-# Current path for External ID (CIAM) tenants: the dedicated app
+# External ID (CIAM) tenants: the dedicated app
 # registration's Application (client) ID for the "custom authentication
 # extension" Entra calls at the OnAttributeCollectionSubmit event. Entra
 # authenticates itself to POST /auth/entra-connector/attribute-collection-submit

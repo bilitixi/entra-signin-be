@@ -8,11 +8,6 @@ urlpatterns = [
     path("auth/logout", views.logout, name="auth-logout"),
     path("auth/me", views.me, name="auth-me"),
     path(
-        "auth/entra-connector/presignup",
-        views.presignup_check,
-        name="auth-presignup-check",
-    ),
-    path(
         "auth/entra-connector/attribute-collection-submit",
         views.attribute_collection_submit,
         name="auth-attribute-collection-submit",
