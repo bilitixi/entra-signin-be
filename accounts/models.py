@@ -8,8 +8,8 @@ from .managers import UserManager
 
 class Role(models.TextChoices):
     ICIB_ADMIN = "icib_admin", "ICIB Admin"
-    STAFF = "staff", "Staff"
-    MEMBER = "member", "Member"
+    EMPLOYER_ADMIN = "employer_admin", "Employer Admin"
+    EMPLOYEE = "employee", "Employee"
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -22,7 +22,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
-    role = models.CharField(max_length=32, choices=Role.choices, default=Role.MEMBER)
+    role = models.CharField(max_length=32, choices=Role.choices, default=Role.EMPLOYEE)
 
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)

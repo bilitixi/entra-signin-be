@@ -323,7 +323,7 @@ def users_collection(request):
 
         user = User.objects.create_user(
             email=email,
-            role=payload.get("role", Role.MEMBER),
+            role=payload.get("role", Role.EMPLOYEE),
             first_name=payload.get("first_name", ""),
             last_name=payload.get("last_name", ""),
             dob=payload.get("dob") or None,
