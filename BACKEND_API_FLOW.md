@@ -48,7 +48,7 @@ assume already exists).
 |---|---|
 | `id` | UUID primary key |
 | `email` | unique, the sign-in identity; matched case-insensitively |
-| `role` | `icib_admin` \| `staff` \| `member` (`accounts.models.Role`) |
+| `role` | `icib_admin` \| `employer_admin` \| `employee` (`accounts.models.Role`) |
 | `first_name`, `last_name`, `dob`, `phone`, `address` | profile fields |
 | `entra_object_id` | `None` until first successful Entra sign-in, then the token's `oid` claim; used afterwards to detect identity mismatch. `default=None` (not `null=True` alone) is required — see the field's docstring in `models.py` for the bug that motivated it |
 | `is_active` | soft-disable; checked at `/auth/callback` and re-checked on every request by `AuthenticationMiddleware` (Django's default re-fetches the row each request, so a role change or deactivation takes effect on the user's very next request — no re-login needed) |
@@ -249,7 +249,7 @@ deactivated user can never reach it):
 {
   "id": "uuid",
   "email": "person@example.com",
-  "role": "member",
+  "role": "employee",
   "first_name": "",
   "last_name": "",
   "dob": null,

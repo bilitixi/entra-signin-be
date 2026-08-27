@@ -29,7 +29,7 @@ they fit together end to end.
 |---|---|
 | `id` | UUID primary key |
 | `email` | unique, sign-in identity |
-| `role` | `icib_admin` \| `staff` \| `member` |
+| `role` | `icib_admin` \| `employer_admin` \| `employee` |
 | `first_name`, `last_name`, `dob`, `phone`, `address` | profile fields |
 | `entra_object_id` | set on first successful Entra sign-in; used to detect identity mismatch on subsequent logins |
 | `is_active` | soft-disable; checked on every sign-in and on every request via `AuthenticationMiddleware` |
